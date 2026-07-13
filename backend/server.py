@@ -4,7 +4,7 @@ Replaces the PyQt5 desktop app (main.py) with a web interface accessible
 from any device on the local network.
 
 Run from the backend/ directory:
-    ../.venv/bin/python3 -m uvicorn server:app --host 0.0.0.0 --port 8000
+    uv run uvicorn server:app --host 0.0.0.0 --port 8000
 """
 
 import os

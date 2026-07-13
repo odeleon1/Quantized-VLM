@@ -53,6 +53,7 @@
 - **Eval tab admin restriction** — Evaluation tab hidden from non-admin users (frontend `App.tsx` guard; backend `eval_router` uses `dependencies=[Depends(require_admin)]`).
 - **Eval frame images** — Broken because `<img src>` on `/eval/frame/*` received 401 (Bearer required). Fixed by splitting into `eval_frame_router` with `?token=` query param validation — same pattern as `/stream`. Frontend constructs URL via `api.evalFrameUrl(path)` which appends the session token.
 - **Auto-scan tab-switch bug** — `autoscan` and `recording` in Dashboard were local `useState`, reset to `false` on every remount. Fixed: both values are now derived from `status?.autoscan ?? false` and `status?.recording ?? false` (the server status poll), so they survive tab switches.
+- **Python packaging: pip → uv** — Backend dependency management switched from `pip` + manually created `.venv` + `backend/requirements.txt` to [uv](https://docs.astral.sh/uv/), managed via a `pyproject.toml` at the repo root (`.venv` still lives at the repo root; `tool.uv.package = false` since the backend is an app, not a distributable package). `llama-cpp-python`'s CUDA build still requires `PATH`/`CMAKE_ARGS` exported before `uv sync` — same mechanism as before, just invoked through uv instead of pip. All run commands (`README.md`, `launch.sh`, `server.py` docstring) updated to `uv run ...` / `uv sync`. `backend/requirements.txt` removed.
 
 ---
 

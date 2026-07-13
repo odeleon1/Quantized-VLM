@@ -3,10 +3,9 @@
 set -e
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
-VENV="$REPO/.venv/bin"
 
 cd "$REPO/backend"
-"$VENV/python3" -m uvicorn server:app --host 0.0.0.0 --port 8000 &
+uv run --project "$REPO" uvicorn server:app --host 0.0.0.0 --port 8000 &
 SERVER_PID=$!
 
 # Wait up to 30s for /status to respond

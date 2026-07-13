@@ -147,7 +147,7 @@ Files are named with their quantization level, e.g.:
 - Receive generated text output
 - OpenAI-compatible API server mode (useful for integration with other tools)
 
-**Installation note:** On the Jetson, it must be compiled with CUDA support enabled — the standard pip install does not do this by default. See Section 13 for the exact build command and API usage patterns.
+**Installation note:** On the Jetson, it must be compiled with CUDA support enabled — a default install does not do this. See Section 13 for the exact build command and API usage patterns.
 
 ---
 
@@ -311,29 +311,28 @@ This section records what was learned during the actual Phase 5 installation and
 
 ### Installation
 
-The default `pip install llama-cpp-python` pulls a pre-built wheel with **no CUDA support**. On Jetson, always build from source with CUDA flags:
+A default install pulls a pre-built wheel with **no CUDA support**. On Jetson, always build from source with CUDA flags. The project uses [uv](https://docs.astral.sh/uv/) rather than pip to manage the venv and dependencies (see `pyproject.toml` at the repo root); uv still invokes the same CMake-based source build, so the same environment variables apply — they just need to be set before `uv sync` instead of `pip install`:
 
 ```bash
-# From inside the project venv
+# From the repo root — uv creates/updates .venv itself, no manual venv step needed
 PATH=/usr/local/cuda/bin:$PATH \
 CMAKE_ARGS="-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=87" \
-pip install llama-cpp-python
+uv sync
 ```
 
-The resulting wheel is ~265MB (vs. ~4MB for the CPU-only wheel) because it contains compiled CUDA kernels. The large size is a useful sanity check that CUDA was actually compiled in.
+The resulting build is ~265MB (vs. ~4MB for the CPU-only build) because it contains compiled CUDA kernels. The large size is a useful sanity check that CUDA was actually compiled in.
 
 Build time on the Orin Nano is similar to the llama.cpp build — expect 5–10 minutes. This is normal; it's compiling C++ and CUDA code.
 
 ### Project Environment Setup
 
-Always use a dedicated venv, not the system Python or another project's venv:
+uv manages a single dedicated venv (`.venv/` at the repo root) from `pyproject.toml` — never the system Python or another project's venv:
 
 ```bash
-/usr/bin/python3 -m venv .venv
-PATH=/usr/local/cuda/bin:$PATH CMAKE_ARGS="-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=87" .venv/bin/pip install llama-cpp-python
+PATH=/usr/local/cuda/bin:$PATH CMAKE_ARGS="-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=87" uv sync
 ```
 
-To run a script: `.venv/bin/python3 your_script.py` — no need to `source activate`.
+To run a script inside the managed environment: `uv run python your_script.py` — no need to `source activate`.
 
 ### Loading the Model in Python
 
