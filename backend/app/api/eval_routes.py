@@ -68,12 +68,6 @@ def _run_eval() -> None:
         _eval_state["current_label"] = label
         _eval_state["progress"] = i
 
-        jpeg = _state.get("camera") and _state["camera"].get_latest_jpeg()
-        if not jpeg:
-            _eval_state["error"] = "Camera not ready — no frames available."
-            _eval_state["running"] = False
-            return
-
         acquired = _infer_lock.acquire(timeout=15)
         if not acquired:
             _eval_state["error"] = f"Timed out waiting for inference lock on '{label}'."
@@ -84,6 +78,15 @@ def _run_eval() -> None:
             llm = _state.get("llm")
             if not llm:
                 _eval_state["error"] = "Model not loaded."
+                _eval_state["running"] = False
+                return
+            # Capture the frame after acquiring the lock so the evaluated image
+            # reflects the scene at inference time, not whatever was current up to
+            # 15s earlier while waiting for the lock. max_age_s also guarantees a
+            # stale frame is rejected here rather than silently evaluated.
+            jpeg = _state.get("camera") and _state["camera"].get_latest_jpeg()
+            if not jpeg:
+                _eval_state["error"] = "Camera not ready — no frames available."
                 _eval_state["running"] = False
                 return
             text, tokens, elapsed = run_inference(llm, jpeg, prompt, max_tokens=MAX_TOKENS_EVAL)

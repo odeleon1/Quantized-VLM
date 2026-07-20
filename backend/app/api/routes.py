@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import os
 import threading
@@ -117,16 +118,19 @@ def _run_inference_locked(
 
 # ── Camera stream ─────────────────────────────────────────────────────────────
 
-def _mjpeg_generator():
+async def _mjpeg_generator():
+    # Async generator so each stream viewer is driven by the event loop instead
+    # of permanently occupying one of Starlette's threadpool threads. The client
+    # sees identical output.
     while True:
         jpeg = _state.get("camera") and _state["camera"].get_latest_jpeg()
         if jpeg:
             yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
-        time.sleep(1 / 30)
+        await asyncio.sleep(1 / 30)
 
 
 @stream_router.get("/stream")
-def stream(token: str | None = None):
+async def stream(token: str | None = None):
     if not token:
         raise HTTPException(401, "Token required.")
     try:
@@ -316,6 +320,7 @@ def record_stop():
 
 def _autoscan_loop(interval: int, session_dir: str):
     while _state.get("autoscan"):
+        start = time.monotonic()
         try:
             result = _run_inference_locked(
                 ANALYZE_PROMPT, save_dir=session_dir, source="Auto-Scan", max_tokens=MAX_TOKENS_ANALYZE
@@ -336,7 +341,10 @@ def _autoscan_loop(interval: int, session_dir: str):
                 )
         except HTTPException:
             pass  # busy or camera not ready — skip this tick
-        time.sleep(interval)
+        # Subtract the time inference already consumed so the tick period matches
+        # the interval the UI shows, rather than interval plus inference time.
+        elapsed = time.monotonic() - start
+        time.sleep(max(0.0, interval - elapsed))
 
 
 @router.post("/autoscan/start")
