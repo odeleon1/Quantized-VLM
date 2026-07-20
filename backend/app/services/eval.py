@@ -25,7 +25,10 @@ import cv2
 import numpy as np
 
 from app.services.capture import open_camera, capture_frame, release_camera
-from app.core.config import MODEL_PATH, MMPROJ_PATH, REPORTS_DIR, BASELINE_PATH, CAMERA_INDEX
+from app.core.config import (
+    MODEL_PATH, MMPROJ_PATH, REPORTS_DIR, BASELINE_PATH, CAMERA_INDEX,
+    MAX_TOKENS_ANALYZE, INFER_TEMPERATURE, INFER_REPEAT_PENALTY,
+)
 from llama_cpp import Llama
 from llama_cpp.llama_chat_format import MoondreamChatHandler
 
@@ -133,7 +136,20 @@ def load_model():
     return llm
 
 
-def run_inference(llm, jpeg_bytes, prompt):
+def run_inference(
+    llm,
+    jpeg_bytes,
+    prompt,
+    max_tokens=MAX_TOKENS_ANALYZE,
+    temperature=INFER_TEMPERATURE,
+    repeat_penalty=INFER_REPEAT_PENALTY,
+):
+    """Run one image plus prompt inference.
+
+    Sampling parameters are passed explicitly rather than inherited from the
+    handler defaults. max_tokens caps generation length, which is the main
+    latency control in this generation-bound pipeline.
+    """
     img_b64 = base64.b64encode(jpeg_bytes).decode()
     t0 = time.time()
     response = llm.create_chat_completion(
@@ -143,7 +159,10 @@ def run_inference(llm, jpeg_bytes, prompt):
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
                 {"type": "text", "text": prompt},
             ],
-        }]
+        }],
+        max_tokens=max_tokens,
+        temperature=temperature,
+        repeat_penalty=repeat_penalty,
     )
     elapsed = time.time() - t0
     text = response["choices"][0]["message"]["content"].strip()

@@ -35,6 +35,18 @@ CAMERA_WIDTH = int(os.environ.get("CAMERA_WIDTH", "640"))
 CAMERA_HEIGHT = int(os.environ.get("CAMERA_HEIGHT", "480"))
 CAMERA_FPS = int(os.environ.get("CAMERA_FPS", "30"))
 
+# ── Inference sampling parameters ─────────────────────────────────────────────
+# PROVISIONAL values pending the eval suite gate on the Jetson. max_tokens is the
+# dominant latency lever because generation runs at about 22 tokens per second,
+# so capping length is the cheapest way to cut response time. Inspect answers are
+# longer than Analyze, so its cap is higher. All are env overridable for tuning
+# without a code change.
+MAX_TOKENS_ANALYZE = int(os.environ.get("MAX_TOKENS_ANALYZE", "120"))
+MAX_TOKENS_INSPECT = int(os.environ.get("MAX_TOKENS_INSPECT", "160"))
+MAX_TOKENS_EVAL = int(os.environ.get("MAX_TOKENS_EVAL", "120"))
+INFER_TEMPERATURE = float(os.environ.get("INFER_TEMPERATURE", "0.3"))
+INFER_REPEAT_PENALTY = float(os.environ.get("INFER_REPEAT_PENALTY", "1.15"))
+
 # ── Authentication secrets ────────────────────────────────────────────────────
 
 

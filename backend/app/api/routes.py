@@ -12,7 +12,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.api.auth_routes import get_current_user
-from app.core.config import JWT_SECRET, RUNS_DIR, REPORTS_DIR
+from app.core.config import (
+    JWT_SECRET, RUNS_DIR, REPORTS_DIR, MAX_TOKENS_ANALYZE, MAX_TOKENS_INSPECT,
+)
 from app.core.database import log_output
 from app.services.eval import run_inference
 
@@ -69,7 +71,12 @@ def _require_model():
         raise HTTPException(503, "Model is still loading, please wait ~10 seconds.")
 
 
-def _run_inference_locked(prompt: str, save_dir: str | None = None, source: str = "Analyze") -> dict:
+def _run_inference_locked(
+    prompt: str,
+    save_dir: str | None = None,
+    source: str = "Analyze",
+    max_tokens: int = MAX_TOKENS_ANALYZE,
+) -> dict:
     """Acquire inference lock, run inference, save a clean JPEG frame, release.
     Returns result dict including 'file_path' for the saved frame."""
     _require_model()
@@ -89,7 +96,7 @@ def _run_inference_locked(prompt: str, save_dir: str | None = None, source: str 
                 f"a frozen or stalled camera is the likely cause, not the model."
             )
         _state["last_frame_hash"] = frame_hash
-        text, tokens, elapsed = run_inference(_state["llm"], jpeg, prompt)
+        text, tokens, elapsed = run_inference(_state["llm"], jpeg, prompt, max_tokens=max_tokens)
         result = {
             "text": text,
             "tokens": tokens,
@@ -178,7 +185,7 @@ def status():
 
 @router.post("/analyze")
 def analyze(user: dict = Depends(get_current_user)):
-    result = _run_inference_locked(ANALYZE_PROMPT, source="Analyze")
+    result = _run_inference_locked(ANALYZE_PROMPT, source="Analyze", max_tokens=MAX_TOKENS_ANALYZE)
     file_path = result.pop("file_path")
     log_output(
         type="analyze",
@@ -196,7 +203,7 @@ def analyze(user: dict = Depends(get_current_user)):
 
 @router.post("/inspect")
 def inspect(user: dict = Depends(get_current_user)):
-    result = _run_inference_locked(INSPECT_PROMPT, source="Inspect")
+    result = _run_inference_locked(INSPECT_PROMPT, source="Inspect", max_tokens=MAX_TOKENS_INSPECT)
     file_path = result.pop("file_path")
     log_output(
         type="inspect",
@@ -312,7 +319,9 @@ def record_stop():
 def _autoscan_loop(interval: int, session_dir: str):
     while _state.get("autoscan"):
         try:
-            result = _run_inference_locked(ANALYZE_PROMPT, save_dir=session_dir, source="Auto-Scan")
+            result = _run_inference_locked(
+                ANALYZE_PROMPT, save_dir=session_dir, source="Auto-Scan", max_tokens=MAX_TOKENS_ANALYZE
+            )
             file_path = result.pop("file_path")
             user_id = _state.get("autoscan_user_id")
             if user_id:

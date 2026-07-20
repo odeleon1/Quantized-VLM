@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse
 
 from app.api.auth_routes import get_current_user, require_admin
 from app.api.routes import _infer_lock, _state
-from app.core.config import BASELINE_PATH, JWT_SECRET, REPORTS_DIR
+from app.core.config import BASELINE_PATH, JWT_SECRET, REPORTS_DIR, MAX_TOKENS_EVAL
 from app.services.eval import (
     PROMPTS,
     generate_baseline_report,
@@ -86,7 +86,7 @@ def _run_eval() -> None:
                 _eval_state["error"] = "Model not loaded."
                 _eval_state["running"] = False
                 return
-            text, tokens, elapsed = run_inference(llm, jpeg, prompt)
+            text, tokens, elapsed = run_inference(llm, jpeg, prompt, max_tokens=MAX_TOKENS_EVAL)
         finally:
             _infer_lock.release()
 
