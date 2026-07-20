@@ -1,5 +1,4 @@
 import hashlib
-import json
 import os
 import threading
 import time
@@ -49,7 +48,6 @@ _infer_lock = threading.Lock()
 SNAPSHOTS_DIR  = os.path.join(os.path.dirname(RUNS_DIR), "snapshots")
 RECORDINGS_DIR = os.path.join(os.path.dirname(RUNS_DIR), "recordings")
 AUTOSCAN_DIR   = os.path.join(os.path.dirname(RUNS_DIR), "auto_scan")
-SESSION_LOG    = os.path.join(os.path.dirname(RUNS_DIR), "session_log.json")
 
 
 def init_state(state: dict):
@@ -398,7 +396,9 @@ def flag(user: dict = Depends(get_current_user)):
         user_id=int(user["sub"]),
     )
 
-    entry = {
+    # The flagged frame and its inference context are already persisted to the
+    # outputs table by log_output above. The response mirrors that record.
+    return {
         "timestamp": ts,
         "flagged": True,
         "frame": frame_path,
@@ -406,17 +406,3 @@ def flag(user: dict = Depends(get_current_user)):
             {k: v for k, v in last.items() if k != "jpeg"} if last else None
         ),
     }
-
-    # Append to session log
-    log = []
-    if os.path.exists(SESSION_LOG):
-        try:
-            with open(SESSION_LOG) as f:
-                log = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            log = []
-    log.append(entry)
-    with open(SESSION_LOG, "w") as f:
-        json.dump(log, f, indent=2)
-
-    return entry

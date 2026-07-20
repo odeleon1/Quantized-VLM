@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from app.core.config import JWT_EXPIRY_HOURS, JWT_SECRET
@@ -16,9 +15,9 @@ from app.core.database import (
     update_password,
     username_exists,
 )
+from app.core.security import hash_password, verify_password
 
 auth_router = APIRouter(prefix="/auth")
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _security = HTTPBearer()
 
 # ── Password validation ───────────────────────────────────────────────────────
@@ -114,14 +113,14 @@ def signup(body: SignupRequest):
     if email_exists(email):
         raise HTTPException(409, "An account with that email already exists.")
 
-    user = create_user(username, email, pwd_ctx.hash(body.password))
+    user = create_user(username, email, hash_password(body.password))
     return {"message": "Account created successfully.", "username": user["username"]}
 
 
 @auth_router.post("/login")
 def login(body: LoginRequest):
     user = find_user(body.identifier.strip())
-    if not user or not pwd_ctx.verify(body.password, user["password_hash"]):
+    if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(401, "Invalid username/email or password.")
     return {
         "access_token": _create_token(user),
@@ -151,10 +150,10 @@ def me(user: dict = Depends(get_current_user)):
 @auth_router.post("/change-password")
 def change_password(body: ChangePasswordRequest, user: dict = Depends(get_current_user)):
     row = find_user_by_id(int(user["sub"]))
-    if not row or not pwd_ctx.verify(body.current_password, row["password_hash"]):
+    if not row or not verify_password(body.current_password, row["password_hash"]):
         raise HTTPException(401, "Current password is incorrect.")
     err = _validate_password(body.new_password)
     if err:
         raise HTTPException(400, err)
-    update_password(user["sub"], pwd_ctx.hash(body.new_password))
+    update_password(user["sub"], hash_password(body.new_password))
     return {"message": "Password changed successfully."}

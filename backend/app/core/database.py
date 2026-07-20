@@ -49,13 +49,12 @@ def init_db() -> None:
 
     count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     if count == 0:
-        from passlib.context import CryptContext
-        pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        from app.core.security import hash_password
         now = datetime.now(timezone.utc).isoformat()
         conn.execute(
             "INSERT INTO users (username, email, password_hash, is_admin, created_at) "
             "VALUES (?, ?, ?, 1, ?)",
-            (ADMIN_USERNAME, ADMIN_EMAIL, pwd_ctx.hash(ADMIN_PASSWORD), now),
+            (ADMIN_USERNAME, ADMIN_EMAIL, hash_password(ADMIN_PASSWORD), now),
         )
         conn.commit()
         print(f"\n{'=' * 60}")

@@ -68,7 +68,7 @@ The application is a **web interface** served by FastAPI and built in React, acc
 | Camera | OpenCV (UVC/USB) | Hardware-agnostic; works with any USB webcam |
 | Backend | FastAPI + Uvicorn | Serves inference endpoints, MJPEG stream, and eval routes |
 | Frontend | React + TypeScript (Vite) | Dark navy dashboard; accessible from any LAN device |
-| Auth | JWT (PyJWT) + bcrypt (passlib) | 24-hour signed tokens stored in `sessionStorage`; bcrypt password hashing |
+| Auth | JWT (PyJWT) + bcrypt | 24-hour signed tokens stored in `sessionStorage`; bcrypt password hashing called directly |
 | User storage | SQLite (stdlib) | Single-file database; stores users and per-user output history |
 | Python packaging | uv (Astral) | Manages `.venv` + dependency install from `pyproject.toml`; no pip/manual venv steps |
 | Platform | Jetson Orin Nano 8GB, JetPack 7.2 | 8 GB unified RAM shared between CPU and GPU |
@@ -156,9 +156,21 @@ cd backend
 uv run uvicorn server:app --host 0.0.0.0 --port 8000
 ```
 
-On **first startup**, if no admin account exists, the server seeds one and prints the credentials to the console. **Read them from the terminal — they are not stored anywhere else.**
+On **first startup**, if no admin account exists, the server seeds one and prints the credentials to the console. **Read them from the terminal, they are not stored anywhere else.** If you lose that output, delete `output/vlmedge.db` and restart to force a fresh re-seed.
 
-> **Security:** set `ADMIN_PASSWORD` before the first launch so you control the password. Change the admin username and email through the Admin panel immediately after logging in. Do not leave the default credentials in place on a networked device.
+#### Configuration environment variables
+
+All of these are optional. When they are unset the server generates safe values, so a fresh clone runs without editing anything.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ADMIN_PASSWORD` | randomly generated, printed once on first boot | Password for the seeded admin account. Set it to choose your own. |
+| `ADMIN_USERNAME` | `admin` | Username for the seeded admin account. |
+| `ADMIN_EMAIL` | `admin@vlmedge.local` | Email for the seeded admin account. |
+| `JWT_SECRET` | generated once into `output/.jwt_secret` (chmod 600) | Signing key for auth tokens. Kept out of git and persists across restarts. |
+| `CAMERA_INDEX` | `0` | Which `/dev/video*` device to open. |
+
+> **Security:** set `ADMIN_PASSWORD` before the first launch if you want to choose it yourself. Change the admin username and email through the Admin panel after logging in. The signing key in `output/.jwt_secret` never enters git; a leaked key would let anyone forge admin tokens, so treat it as a secret.
 
 ```bash
 ADMIN_PASSWORD="choose-a-strong-password" uv run uvicorn server:app --host 0.0.0.0 --port 8000
@@ -172,14 +184,7 @@ Model loading takes approximately 10 seconds. Once the status bar shows **Ready*
 http://<JETSON_IP>:8000
 ```
 
-### 7. Add to the desktop (optional)
-
-To launch from the Jetson desktop without a terminal:
-
-```bash
-cp vlm-interface.desktop ~/Desktop/
-chmod +x ~/Desktop/vlm-interface.desktop
-```
+This is a web-only interface. Everything is reached through the browser, so no application needs to be installed on the client device.
 
 ---
 
@@ -203,7 +208,8 @@ Quantized-VLM/
 │   │   └── services/
 │   │       ├── capture.py           # Camera open/capture/release helpers
 │   │       └── eval.py              # Inference, annotation, report generation, evaluation prompts
-│   └── server.py                    # FastAPI app entry point + lifespan (model load, camera start, DB init)
+│   └── server.py                    # FastAPI app entry point + lifespan (model load, camera start, DB init) + /health
+├── launch.sh                        # Starts the server, waits on /health, opens the browser
 ├── frontend/
 │   ├── src/
 │   │   ├── app/
@@ -218,9 +224,9 @@ Quantized-VLM/
 │   └── vite.config.ts
 ├── models/                          # GGUF model files (not tracked in git)
 ├── output/                          # Snapshots, recordings, eval reports (not tracked)
-├── docs/
-│   └── screenshots/                 # UI screenshots used in this README
-└── vlm-interface.desktop            # Jetson desktop launcher
+└── docs/
+    ├── screenshots/                 # UI screenshots used in this README
+    └── documentation/               # CLAUDE.md, BRIEFING.md, LEARNING.md
 ```
 
 ---
@@ -230,9 +236,9 @@ Quantized-VLM/
 | Resource | Requirement |
 |---|---|
 | Device | NVIDIA Jetson Orin Nano 8GB |
-| JetPack | 7.2 (Ubuntu 22.04 base) |
+| JetPack | 7.2 (Ubuntu 24.04 base) |
 | RAM | 8 GB unified (model uses ~2.5 GB at load) |
-| Storage | ~2 GB for model files |
+| Storage | ~4.4 GB during setup (all three model files present), ~1.7 GB after deleting the F16 text model |
 | Camera | Any USB/UVC webcam |
 | Network | LAN connection for remote browser access |
 | CUDA | Included with JetPack — no separate install |

@@ -107,7 +107,23 @@ app.include_router(library_router)          # /library/* — Bearer required
 app.include_router(library_admin_router)    # /library/admin/* — Bearer + admin required
 app.include_router(admin_router)            # /admin/* — Bearer + admin required
 
-# Serve the built React frontend — must come AFTER the API router
+
+# ── Health probe ──────────────────────────────────────────────────────────────
+# Unauthenticated readiness probe for launch.sh and any robotics deployment
+# supervisor. Returns only booleans, so it leaks nothing sensitive. It must be
+# defined before the SPA catch-all route so it is not swallowed by it.
+
+@app.get("/health", include_in_schema=True)
+async def health():
+    camera = _state.get("camera")
+    return {
+        "ok": True,
+        "model_ready": _state.get("llm") is not None,
+        "camera_ready": camera is not None and camera.get_latest_jpeg() is not None,
+    }
+
+
+# Serve the built React frontend, which must come after the API routers
 if os.path.isdir(_FRONTEND_DIST):
     app.mount("/assets", StaticFiles(directory=os.path.join(_FRONTEND_DIST, "assets")), name="assets")
 
