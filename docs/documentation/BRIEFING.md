@@ -394,8 +394,28 @@ No other tuning was required.
 
 ---
 
-### Phase 16 — Future Implementations
-**Goal:** Placeholder for future work and modes. Scope to be defined.
+### Phase 16: Finalizing & Hardening (IN PROGRESS)
+**Goal:** Make the repo run from a fresh clone, diagnose and fix the stale-response bug, tune inference latency, remove legacy code, and add a responsive phone and tablet interface. Started July 20, 2026.
+
+**Note on gates:** all benchmarks and camera-dependent checks must run on the Jetson. Several tasks are code complete but their gates are pending because the current work happened without the camera attached. The server does not boot without a camera, so those gates and the responsive visual check wait for hardware access. Gate results with numbers will be recorded here once run.
+
+**Step 0: config.py restored (DONE).** The gitignored config.py had gone missing from disk entirely, so nine backend modules failed to import and the server could not boot. Recovered the real values from the stale bytecode and rewrote config.py as a committed file that reads secrets from environment variables: JWT_SECRET comes from the env, else output/.jwt_secret, else a generated token_hex(32) written with chmod 600; ADMIN_PASSWORD is generated with token_urlsafe(12) when unset. Removed config.py from .gitignore. Verified the full import chain and that output/.jwt_secret stays out of git.
+
+**Task 1: Camera staleness and duplicate-response diagnostics (CODE COMPLETE, gate pending).** CameraThread now timestamps every frame; get_latest_jpeg(max_age_s=2.0) returns None once the newest frame is stale, so a frozen USB camera becomes a clean 503 instead of an endlessly repeated frame. Added sleep-on-failure to stop the busy-spin, device reconnect with backoff, and a frame_age_s method surfaced in /status and the StatusBar. Each inference records an md5 frame_hash (result, last_result, and a new nullable outputs.frame_hash column via guarded migration), plus a console warning when two consecutive inferences use identical bytes. Verified in isolation with a fake capture. Gate PENDING: unplug mid-session and confirm a 503 within max_age_s, replug recovers without restart, CPU stays sane, and two static-scene calls log the same-hash warning.
+
+**Task 2: Inference parameters (CODE COMPLETE, values PROVISIONAL, gate pending).** run_inference passes max_tokens, temperature (0.3), and repeat_penalty (1.15) explicitly instead of inheriting the handler defaults. Per-route caps live in config.py: Analyze and auto-scan 120, Inspect 160, eval 120. max_tokens is the dominant latency lever in this generation-bound pipeline. Gate PENDING: run the full 5-prompt eval before and after on the Jetson, compare latency, and read every response pair for truncation or quality regression before locking the values.
+
+**Task 3: Fresh-clone runnability (CODE COMPLETE, gate pending).** Added an unauthenticated GET /health returning boolean readiness and pointed launch.sh at it, since the old /status poll needed a token and always waited the full 30 seconds. Documented the ADMIN and JWT_SECRET and CAMERA_INDEX environment variables in the README. Dropped the desktop-launcher path; this is a web-only interface. Also found that annotated-doc, a FastAPI 0.138 dependency, was missing from the local venv (it imported only through a leaked PYTHONPATH); a fresh uv sync installs it, so pyproject is correct. Gate PENDING: a throwaway clone runs the README end to end, the server boots, /health returns ok, and login works.
+
+**Task 4: Legacy removal and dependency hardening (CODE COMPLETE, gate pending).** Moved the retired PyQt5 app (main.py) and the standalone pipeline.py to legacy/. Removed passlib, which is broken against bcrypt 5.x (its version probe raises on every hash and verify, so signup, login, change-password, and seeding were all failing), and call bcrypt directly through a new security.py with 72-byte-safe hashing. Existing $2b$ hashes verify unchanged. Removed the racy session_log.json write in /flag. README corrected: JetPack 7.2 is Ubuntu 24.04, storage is about 4.4GB during setup and 1.7GB after deleting the F16. Gate PENDING: uv sync clean with no passlib, and login works for a pre-existing account.
+
+**Task 5: Concurrency and loop correctness (CODE COMPLETE, gate pending).** The MJPEG stream is now an async generator, so viewers no longer each hold a Starlette threadpool thread. Auto-scan sleeps max(0, interval minus inference time) so the tick period matches the UI. The eval suite captures the frame inside the acquired lock so the evaluated image reflects the scene at inference time. Verified async behavior and tick timing in isolation. Gate PENDING: two-tab MJPEG, autoscan interval 10 produces rows about 10 seconds apart, eval completes.
+
+**Task 6: Optional performance experiments (NOT STARTED, Jetson only).** Single-variable trials of flash_attn, n_batch 1024, and n_threads 6, each with an eval before and after. To be run after the earlier gates pass.
+
+**Task 7: Responsive phone and tablet interface (CODE COMPLETE, visual gate pending).** CSS-only responsive layer with a 100dvh base and breakpoints at 1024, 768, and 480 pixels. The two-column dashboard, eval, and library layouts collapse to a single scrolling column; the nav wraps with touch-sized targets; the preview modal goes full screen; inputs use 16px to stop iOS zoom on focus. No component or API changes. Gate PENDING: iPhone and iPad in both orientations plus a real phone on the LAN, with no horizontal scroll and all controls reachable.
+
+**Task 8: Remove Phase-N labels from source (DONE).** Stripped phase references from module docstrings, comments, and test banners so the phase history lives only in this document. Renamed test_phase5.py to test_inference.py. Legacy archives keep their headers by design.
 
 ---
 

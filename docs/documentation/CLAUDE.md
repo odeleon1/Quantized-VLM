@@ -1,7 +1,7 @@
 # CLAUDE.md — Project Instructions & Context
 
-**Last Updated:** Prompt 62 | June 29, 2026
-**Next Scheduled Update:** Prompt 67 (or sooner if a major topic is introduced)
+**Last Updated:** Prompt 63 | July 20, 2026
+**Next Scheduled Update:** Prompt 68 (or sooner if a major topic is introduced)
 
 ---
 
@@ -30,7 +30,7 @@
 ## Deferred / Open Questions
 
 - Additional specialized buttons — People Count, Hazard Level, Equipment Status are candidates; deferred to Phase 16 after real-world testing informs which are actually useful
-- Inference parameter tuning — `temperature`, `max_tokens`, `repeat_penalty` currently use llama-cpp-python defaults; deferred to Phase 16
+- Inference parameter tuning — implemented in Phase 16 and now passed explicitly (`max_tokens` per route, `temperature` 0.3, `repeat_penalty` 1.15), but the values are PROVISIONAL. They move to Active Decisions only after the Jetson eval-suite gate confirms no latency regression, no mid-sentence truncation, and no quality loss. See Phase 16 in BRIEFING.md.
 
 ## Resolved Questions
 
@@ -54,6 +54,16 @@
 - **Eval frame images** — Broken because `<img src>` on `/eval/frame/*` received 401 (Bearer required). Fixed by splitting into `eval_frame_router` with `?token=` query param validation — same pattern as `/stream`. Frontend constructs URL via `api.evalFrameUrl(path)` which appends the session token.
 - **Auto-scan tab-switch bug** — `autoscan` and `recording` in Dashboard were local `useState`, reset to `false` on every remount. Fixed: both values are now derived from `status?.autoscan ?? false` and `status?.recording ?? false` (the server status poll), so they survive tab switches.
 - **Python packaging: pip → uv** — Backend dependency management switched from `pip` + manually created `.venv` + `backend/requirements.txt` to [uv](https://docs.astral.sh/uv/), managed via a `pyproject.toml` at the repo root (`.venv` still lives at the repo root; `tool.uv.package = false` since the backend is an app, not a distributable package). `llama-cpp-python`'s CUDA build still requires `PATH`/`CMAKE_ARGS` exported before `uv sync` — same mechanism as before, just invoked through uv instead of pip. All run commands (`README.md`, `launch.sh`, `server.py` docstring) updated to `uv run ...` / `uv sync`. `backend/requirements.txt` removed.
+
+### Phase 16 gotchas (Finalizing & Hardening)
+
+- **Duplicate-response root cause is not the model.** Verified against the llama-cpp-python 0.3.31 source: the mtmd path in `Llava15ChatHandler.__call__` (used by `MoondreamChatHandler`) calls `llama.reset()` and `llama._ctx.kv_cache_clear()` at the start of every call and rebuilds the image embedding from the fresh bytes. There is no KV carryover and no image-embed cache between calls. The two real candidates for identical responses are a frozen camera and near-greedy sampling. The frame_hash diagnostic added in Task 1 distinguishes them: same hash means the camera delivered identical bytes (frozen), different hash with identical text means sampling determinism (addressed by Task 2's temperature bump).
+- **Frozen USB camera is the default silent failure.** `CameraThread.run()` only updated `_jpeg` on a successful `cap.read()`, so if the camera stalled or dropped off the bus the last good frame was served forever: `/status` still said `camera_ready`, the stream showed the frozen image, and every inference re-analyzed identical bytes. There was also a busy-spin on read failure (no sleep) that pegged a core. Fix: timestamp every frame, reject frames older than `max_age_s` in `get_latest_jpeg`, sleep on failure, and reconnect with backoff.
+- **passlib is broken against bcrypt 5.x.** passlib 1.7.4 cannot read bcrypt 5.x's version and its internal `detect_wrap_bug` probe passes an over-length value that bcrypt 5.x rejects with `ValueError`. That path runs on every hash and verify, so signup, login, change-password, and admin seeding all raised. passlib was removed entirely; `backend/app/core/security.py` calls bcrypt directly and truncates passwords to 72 bytes so bcrypt 5.x never raises. Existing `$2b$` hashes verify unchanged.
+- **launch.sh always waited the full 30 seconds.** Its readiness poll hit `/status`, which requires a Bearer token since Phase 14, so `curl -sf` got 401 every iteration. Fix: an unauthenticated `GET /health` returning only boolean readiness (`ok`, `model_ready`, `camera_ready`), and launch.sh polls that.
+- **config.py had gone missing from disk.** It was gitignored and the source file no longer existed, only stale bytecode in `__pycache__`, so nine backend modules failed to import and the server could not boot. The real values were recovered from the bytecode and config.py was rewritten as a committed, secrets-from-env file (see BRIEFING Phase 16 Step 0). Lesson: a gitignored file that every module imports is a single point of failure for a fresh clone.
+- **annotated-doc dependency drift.** FastAPI 0.138 declares `annotated-doc` as a dependency, so a fresh `uv sync` installs it. The local `.venv` was missing it and only imported FastAPI through a leaked `PYTHONPATH` (a ROS and sibling-project setup in the shell). `pyproject.toml` is correct; the fix is to run `uv sync` on the machine so it stops depending on the leak.
+- **Web-only direction confirmed.** No native desktop launcher. The `vlm-interface.desktop` file and the README desktop step were dropped; the interface is reached entirely through the browser.
 
 ---
 
@@ -105,7 +115,7 @@
 | Phase 13 — Prompt & Button Optimization | ✅ Complete |
 | Phase 14 — Authentication System | ✅ Complete |
 | Phase 15 — Library, Session Management & Polish | ✅ Complete |
-| Phase 16 — Future Implementations | Placeholder |
+| Phase 16 — Finalizing & Hardening | 🔧 In progress (code complete, hardware gates pending) |
 
 ## Session Note
 
@@ -117,7 +127,7 @@ Phase 12 (Web Evaluation Interface) completed June 24, 2026. Added a second page
 
 Phase 13 (Prompt & Button Optimization) completed June 24, 2026. `ANALYZE_PROMPT` updated to frame output as a transportation safety inspection report covering environment, condition, personnel, and safety concerns. `INSPECT_PROMPT` updated with a structured checklist (structural damage, operational hazards, missing safety equipment, environmental conditions) and asks for issue location in the frame. All 5 evaluation prompts updated to be inspection-oriented but general enough for non-transportation scenes. Prompt labels kept unchanged to avoid orphaning existing report frame files. Eval report frames changed from annotated (Q&A overlay) to clean images — the ReportViewer cards already display the prompt and response as captions. Browser tab title changed from "frontend" to "VLM Edge".
 
-Phase 14 (Authentication System) completed June 29, 2026. Full JWT-based auth layer added to the web interface. Backend: SQLite user database (`output/vlmedge.db`), bcrypt password hashing via passlib, PyJWT tokens with 24-hour expiry. Three new route groups: `/auth/*` (public — signup, login, me, change-password), `/admin/*` (admin-only — list users, promote, demote), all existing `/analyze`, `/inspect`, `/eval/*`, etc. routes now require Bearer token. `/stream` uses `?token=` query param since `<img src>` cannot send headers. Initial admin account seeded on first startup; credentials printed to console. Frontend: `AuthContext` with localStorage token persistence and session restore via `GET /auth/me`; `LoginPage`, `SignupPage` (with live `PasswordStrengthBar`), `AdminPage` (user table with promote/demote). Admin tab only visible to admin users. Two bugs discovered and fixed during development: (1) PyJWT 2.x requires the `sub` claim to be a string — encoding an integer user ID caused every token to fail validation silently; (2) the `vlmedge:unauthorized` event listener was only registered if a token existed at page load, meaning fresh-session users had no logout-on-401 behavior. `ANALYZE_PROMPT` also revised in this phase to remove the transportation framing — Analyze is general-purpose, Inspect is the domain-specific button.
+Phase 14 (Authentication System) completed June 29, 2026. Full JWT-based auth layer added to the web interface. Backend: SQLite user database (`output/vlmedge.db`), bcrypt password hashing via passlib, PyJWT tokens with 24-hour expiry. Three new route groups: `/auth/*` (public — signup, login, me, change-password), `/admin/*` (admin-only — list users, promote, demote), all existing `/analyze`, `/inspect`, `/eval/*`, etc. routes now require Bearer token. `/stream` uses `?token=` query param since `<img src>` cannot send headers. Initial admin account seeded on first startup; credentials printed to console. Frontend: `AuthContext` with localStorage token persistence and session restore via `GET /auth/me`; `LoginPage`, `SignupPage` (with live `PasswordStrengthBar`), `AdminPage` (user table with promote/demote). Admin tab only visible to admin users. Two bugs discovered and fixed during development: (1) PyJWT 2.x requires the `sub` claim to be a string — encoding an integer user ID caused every token to fail validation silently; (2) the `vlmedge:unauthorized` event listener was only registered if a token existed at page load, meaning fresh-session users had no logout-on-401 behavior. `ANALYZE_PROMPT` also revised in this phase to remove the transportation framing — Analyze is general-purpose, Inspect is the domain-specific button. (Superseded since: `localStorage` moved to `sessionStorage` in Phase 15, and passlib was removed in favor of direct bcrypt in Phase 16.)
 
 Phase 15 (Library, Session Management & Polish) completed June 29, 2026. Six distinct improvements shipped:
 
@@ -132,3 +142,5 @@ Phase 15 (Library, Session Management & Polish) completed June 29, 2026. Six dis
 5. **Session lifetime** — JWT token moved from `localStorage` to `sessionStorage`. Closing the browser window clears the token (user must re-login). Page refresh preserves the token (session continues). Logout explicitly clears both `vlmedge_token` and `vlmedge_results` from sessionStorage.
 
 6. **Result history persistence and correct source labels** — Dashboard result history (`results` array) stored in `sessionStorage` and restored on every mount. History survives all tab switches and page refreshes; wiped on logout or browser close. Server now stores a `source` field in `_state["last_result"]` ("Analyze", "Inspect", or "Auto-Scan") set by each calling route. Status poll uses `lr.source` instead of the previous hardcoded `"Auto-Scan"`, so results recovered after a tab switch carry the correct badge. `lastSeenTimestamp` ref seeded from stored history on mount to prevent duplicate entries.
+
+Phase 16 (Finalizing & Hardening) started July 20, 2026. Renamed from "Future Implementations." Work done without the camera attached, so the code is complete but several gates are pending hardware. Step 0 restored the missing config.py as a committed secrets-from-env file. Task 1 added camera staleness detection and frame_hash duplicate-response diagnostics. Task 2 passes explicit inference parameters (values provisional pending the eval gate). Task 3 added the unauthenticated `/health` endpoint and fixed the launch.sh 401 wait; the interface is now web-only. Task 4 removed passlib (broken against bcrypt 5.x) in favor of direct bcrypt, moved main.py and pipeline.py to legacy/, and removed the racy session_log.json write. Task 5 fixed the sync MJPEG generator, autoscan interval math, and eval frame-capture ordering. Task 7 added a CSS-only responsive layer for phones and tablets. Task 8 stripped phase labels from source. See BRIEFING.md for per-task gate status and the full pending-gate checklist.

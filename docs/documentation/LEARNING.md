@@ -1,7 +1,7 @@
 # LEARNING.md — Technical Reference & Concepts
 
 **Project:** Edge VLM Integration on Jetson Orin Nano
-**Last Updated:** Prompt 62 | June 29, 2026
+**Last Updated:** Prompt 63 | July 20, 2026
 
 > This document explains every tool, concept, model, and library used in this project.
 > Written to be understood by someone encountering these topics for the first time,
@@ -32,7 +32,8 @@
 19. [Web Evaluation: Background Threads, Stats, and Security](#19-web-evaluation-background-threads-stats-and-security)
 20. [Web Authentication: JWT, SQLite, and React Auth Patterns](#20-web-authentication-jwt-sqlite-and-react-auth-patterns)
 21. [Session Lifetime, Result History, and the Library](#21-session-lifetime-result-history-and-the-library)
-22. [Glossary](#22-glossary)
+22. [Latency, Camera Reliability, and Responsive Layout](#22-latency-camera-reliability-and-responsive-layout)
+23. [Glossary](#23-glossary)
 
 ---
 
@@ -1154,7 +1155,7 @@ def stream(token: str | None = None):
 
 The frontend appends the token when constructing the stream URL:
 ```typescript
-streamUrl: () => `/stream?token=${localStorage.getItem("vlmedge_token") ?? ""}`
+streamUrl: () => `/stream?token=${sessionStorage.getItem("vlmedge_token") ?? ""}`
 ```
 
 ### Password Hashing with bcrypt
@@ -1163,19 +1164,19 @@ Passwords must never be stored in plaintext. **Hashing** is a one-way transforma
 
 **bcrypt** is the standard algorithm for password hashing. It is intentionally slow (to resist brute-force attacks) and includes a random salt (to resist precomputed rainbow tables).
 
-`passlib` is the Python library used here:
+The `bcrypt` library is called directly here (helpers live in `backend/app/core/security.py`):
 
 ```python
-from passlib.context import CryptContext
+import bcrypt
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# At signup, store this hash, never the password
+hashed = bcrypt.hashpw("somepassword".encode(), bcrypt.gensalt()).decode()
 
-# At signup — store this hash, never the password
-hashed = pwd_ctx.hash("somepassword")
-
-# At login — returns True if matches
-pwd_ctx.verify("somepassword", hashed)
+# At login, returns True if the password matches
+bcrypt.checkpw("somepassword".encode(), hashed.encode())
 ```
+
+**Why call bcrypt directly instead of through passlib?** This project originally used `passlib`'s `CryptContext` wrapper. `passlib` 1.7.4 is unmaintained and breaks against `bcrypt` 5.x: it cannot read the new version string, and its internal probe passes an over-length value that `bcrypt` 5.x rejects with a `ValueError`. That path runs on every hash and verify, so it took down signup, login, and password changes. Calling `bcrypt` directly avoids the whole failure mode. One detail: `bcrypt` only uses the first 72 bytes of a password and, as of 5.x, raises if a longer one is passed, so the helpers truncate to 72 bytes. Stored hashes are standard `$2b$` strings either way, so old and new hashes verify identically.
 
 ### SQLite for User Storage
 
@@ -1222,12 +1223,13 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
-    // Restore session on page load
-    const token = localStorage.getItem("vlmedge_token");
+    // Restore session on page load. sessionStorage survives refresh but clears
+    // when the browser window closes, which is the session lifetime we want.
+    const token = sessionStorage.getItem("vlmedge_token");
     fetch("/auth/me", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(u => setUser(u))
-      .catch(() => localStorage.removeItem("vlmedge_token"));
+      .catch(() => sessionStorage.removeItem("vlmedge_token"));
   }, []);
 
   return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>;
@@ -1388,7 +1390,49 @@ Key decisions made in this project:
 
 ---
 
-## 22. Glossary
+## 22. Latency, Camera Reliability, and Responsive Layout
+
+These are the concepts behind the Phase 16 hardening work. Written for someone meeting them for the first time.
+
+### Why `max_tokens` is the biggest latency lever
+
+This pipeline is **generation-bound**: almost all of the time a response takes is spent generating output tokens one at a time. On the Orin Nano the model produces roughly 22 tokens per second. That number is close to fixed, so the length of the answer, not its content, sets the response time. A 130-token answer costs about 6 seconds; an 80-token answer costs about 3.6 seconds.
+
+`max_tokens` caps how many tokens the model may generate. If you do not set it, generation runs until the model decides to stop or hits the context limit, which is why a chatty reply can balloon the latency. Setting a cap is the cheapest possible speedup because it does not change the model, the quantization, or the hardware. It just stops generation once the answer is long enough. The tradeoff is that too low a cap truncates real answers mid-sentence, so the cap is chosen by running the eval suite and reading the outputs, not guessed. This is why the Phase 16 values start PROVISIONAL: the numbers only become trustworthy after a before-and-after measurement on the actual device.
+
+Prefill (encoding the image and prompt before generation starts) also costs time, but it is a fixed one-time cost per call. Generation is the part that scales with answer length, so it is where the easy wins are.
+
+### Why the model cannot serve a stale answer from its own memory
+
+A natural worry with a chat model is that it "remembers" the previous image and repeats an old answer. For this stack that cannot happen, and it is worth understanding why.
+
+A transformer keeps a **KV cache** (key/value cache): as it processes tokens it stores intermediate results so it does not recompute the whole history for every new token. If that cache carried over between calls, a new call could be contaminated by the previous one.
+
+In llama-cpp-python 0.3.31, the multimodal path used by `MoondreamChatHandler` clears this cache at the start of every call. It calls `llama.reset()` and `llama._ctx.kv_cache_clear()`, then rebuilds the image embedding from the fresh JPEG bytes it was handed. There is no leftover state and no cached image between calls. So if two calls return the same text, the cause is upstream of the model: either the camera handed it the same pixels, or the sampling was near-deterministic and two similar scenes produced the same words. That distinction is exactly what the frame-hash diagnostic (below) makes visible.
+
+### Frame staleness: the default silent failure of USB cameras
+
+A USB camera can stop delivering frames without raising an error. It can be unplugged, brown out, or drop off the bus, and the capture call simply stops returning new images. If your code only updates its "latest frame" when a read succeeds, it will keep serving the last good frame forever. Everything downstream looks healthy: the status says the camera is ready, the video stream shows a picture, and every inference dutifully analyzes the same frozen image. The system is confidently wrong.
+
+The defense is to treat a frame as **perishable**. Record a timestamp every time a real frame arrives, and when something asks for the latest frame, refuse to return one that is older than a threshold (here, 2 seconds). A frozen camera then reports "no frame available," which the rest of the code already knows how to handle: the inference endpoints return a clean 503 and the status shows the camera as not ready. Two more safeguards go with it: sleep briefly after a failed read so a disconnected camera does not spin a CPU core at 100 percent, and after a run of failures, release and reopen the device with a backoff so a genuinely unplugged camera does not retry forever.
+
+A related diagnostic: hashing the exact JPEG bytes of each analyzed frame turns a vague symptom ("it sometimes repeats") into a certain diagnosis. If two inferences in a row share a hash, the camera delivered identical bytes. If the hashes differ but the text is identical, the camera is fine and the repetition is the model sampling deterministically.
+
+### Responsive layout: one interface for phones, tablets, and desktops
+
+A "responsive" interface adapts its layout to the screen instead of shipping a separate mobile app. The main tools are CSS **media queries**, which apply different rules at different screen widths (breakpoints), and layout that flows rather than sits at fixed pixel sizes.
+
+Three ideas carry most of the weight:
+
+- **Stack instead of split.** A desktop dashboard puts the camera and the results side by side in two columns. On a narrow phone there is no room for two columns, so below a breakpoint the columns become a single vertical stack that the page scrolls through. The same content, reordered top to bottom.
+- **`100dvh`, not `100vh`.** The unit `100vh` means "the full height of the viewport," but on mobile Safari the address bar overlaps that height, so a `100vh` layout gets its bottom clipped. `100dvh` (dynamic viewport height) measures the actually visible area and resizes as the address bar shows and hides, so nothing is cut off.
+- **Touch targets and input zoom.** Fingers are less precise than a mouse, so tap targets are enlarged (around 44 pixels) on small screens. And iOS automatically zooms the page when you focus an input whose font is smaller than 16 pixels, which is jarring, so inputs use 16 pixel text on mobile to prevent it.
+
+The Phase 16 layer is CSS only. It adds media queries at 1024, 768, and 480 pixels and changes no components or API calls, so it cannot affect behavior, only presentation.
+
+---
+
+## 23. Glossary
 
 | Term | Definition |
 |------|-----------|
@@ -1423,11 +1467,12 @@ Key decisions made in this project:
 | **Bearer token** | HTTP Authorization scheme: `Authorization: Bearer <token>`; the standard way to send a JWT with API requests |
 | **`sub` claim** | JWT "subject" — identifies the user the token refers to; PyJWT 2.x requires this to be a string, not an integer |
 | **bcrypt** | A slow, salted password hashing algorithm; intentionally expensive to prevent brute-force attacks |
-| **passlib** | Python library wrapping bcrypt and other hash schemes; provides `CryptContext` with `hash()` and `verify()` |
+| **passlib** | Formerly used to wrap bcrypt via `CryptContext`. Removed in Phase 16 because passlib 1.7.4 breaks against bcrypt 5.x; the project now calls bcrypt directly. |
 | **PyJWT** | Python library for encoding and decoding JWTs |
 | **SQLite** | File-based relational database included in Python's stdlib; no server process required; appropriate for small-scale local deployments |
 | **AuthContext** | React context pattern for sharing login state (user, token, login/logout) across the component tree without prop-drilling |
-| **localStorage** | Browser key-value storage that persists across page reloads; used here to store the JWT so the session survives refresh |
+| **localStorage** | Browser key-value storage that persists until explicitly cleared, even across browser restarts. This project uses `sessionStorage` instead (see below) so the session ends when the window closes. |
+| **sessionStorage** | Browser key-value storage scoped to a tab: it survives page refresh but is cleared when the window or tab closes. Holds the JWT and Dashboard result history here, giving a session that lives as long as the browser window and forces re-login after close. |
 | **HTTPBearer** | FastAPI security dependency that extracts the Bearer token from the `Authorization` header |
 | **ASGI** | Asynchronous Server Gateway Interface — the async equivalent of WSGI; required by FastAPI and uvicorn |
 | **React** | JavaScript UI framework for building component-based browser interfaces |
@@ -1453,3 +1498,12 @@ Key decisions made in this project:
 | **`outputs` table** | SQLite table that logs every user action (analyze, inspect, snapshot, autoscan, record, flag) with user ID, file path, and inference metadata; powers the Library tab |
 | **Library page** | A per-user media browser showing all captured outputs organized by date and action type; admins see all users' outputs; preview modal shows image + Q&A for inference types and a video player for recordings |
 | **`source` field (last_result)** | A string stored in `_state["last_result"]` by `_run_inference_locked()` identifying which button triggered the inference ("Analyze", "Inspect", or "Auto-Scan"); exposed via `/status` so the frontend can show the correct badge even for results recovered after a tab switch |
+| **`max_tokens`** | The cap on how many tokens the model may generate in one response. Because the pipeline is generation-bound at about 22 tokens per second, this is the main control over response latency. |
+| **generation-bound** | A workload whose time is dominated by generating output token by token rather than by input processing. Shortening the output is the cheapest way to reduce latency. |
+| **KV cache** | The key/value cache a transformer keeps so it does not recompute attention over the whole history for each new token. Cleared at the start of every call in the mtmd path, which is why no stale answer can carry over between inferences. |
+| **`frame_hash`** | The first 12 hex characters of the md5 of an analyzed JPEG. Two consecutive inferences with the same hash prove the camera delivered identical bytes, separating a frozen camera from sampling determinism. |
+| **frame staleness** | Treating a camera frame as perishable: `get_latest_jpeg(max_age_s)` returns None once the newest frame is older than the threshold, so a silently frozen USB camera becomes a clean "not ready" instead of an endlessly repeated image. |
+| **`/health`** | An unauthenticated endpoint returning only booleans (`ok`, `model_ready`, `camera_ready`). Used by launch.sh and any deployment supervisor as a readiness probe without needing a token. |
+| **media query** | A CSS rule that applies only at certain screen sizes (for example `@media (max-width: 768px)`), the basic tool for responsive layouts. |
+| **`100dvh`** | Dynamic viewport height: the actually visible height of the screen, which resizes as the mobile browser address bar appears and hides. Used instead of `100vh` so mobile Safari does not clip the bottom of the layout. |
+| **bcrypt 72-byte limit** | bcrypt only hashes the first 72 bytes of a password and, since version 5.x, raises if given more. The password helpers truncate to 72 bytes so long passwords are handled consistently and never crash. |
