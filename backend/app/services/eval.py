@@ -1,5 +1,5 @@
 """
-Phase 8 — Evaluation script.
+Evaluation script.
 Runs a fixed set of prompt types on live camera frames and records
 response quality and latency. Point the camera at a relevant scene
 for each prompt when prompted, then press Enter to capture and infer.
@@ -290,7 +290,7 @@ def main():
     else:
         print("No previous run found — this will be the baseline.\n")
 
-    print("=== Phase 8 — Evaluation ===\n")
+    print("=== Evaluation ===\n")
     print("For each test, set up the scene, then press Enter to capture and run.\n")
     print("-" * 60)
 

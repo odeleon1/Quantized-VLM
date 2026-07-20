@@ -1,5 +1,5 @@
 """
-Evaluation routes for the web interface (Phase 12).
+Evaluation routes for the web interface.
 
 Runs the 5-prompt evaluation suite against the live camera feed in a
 background thread and streams progress via GET /eval/status polling.

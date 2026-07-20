@@ -1,7 +1,8 @@
 """
-FastAPI server — Phase 11 entry point.
-Replaces the PyQt5 desktop app (main.py) with a web interface accessible
-from any device on the local network.
+FastAPI server entry point.
+
+Serves the web interface and inference API for the edge VLM, reachable from any
+device on the local network.
 
 Run from the backend/ directory:
     uv run uvicorn server:app --host 0.0.0.0 --port 8000

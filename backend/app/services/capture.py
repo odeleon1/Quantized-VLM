@@ -1,6 +1,6 @@
 """
-Camera capture module — Phase 6.
-Provides open/capture/release helpers that the Phase 7 pipeline will import.
+Camera capture module.
+Provides open/capture/release helpers used by the inference pipeline.
 Run directly to verify the camera works independently of inference.
 """
 
@@ -55,10 +55,10 @@ def release_camera(cap):
 if __name__ == "__main__":
     device = int(sys.argv[1]) if len(sys.argv) > 1 else 0
     num_frames = 5
-    output_dir = "/tmp/phase6_frames"
+    output_dir = "/tmp/vlm_camera_frames"
     os.makedirs(output_dir, exist_ok=True)
 
-    print(f"=== Phase 6 — Camera Capture Test ===\n")
+    print(f"=== Camera Capture Test ===\n")
     print(f"Testing device {device}, capturing {num_frames} frames...\n")
 
     cap = open_camera(device)
@@ -72,6 +72,6 @@ if __name__ == "__main__":
 
     release_camera(cap)
 
-    print(f"\n=== Phase 6 PASSED ===")
+    print(f"\n=== Camera Capture Test PASSED ===")
     print(f"Frames saved to {output_dir}/ — inspect them to confirm image quality.")
     print(f"To test with a different device index: python3 -m app.services.capture 1")

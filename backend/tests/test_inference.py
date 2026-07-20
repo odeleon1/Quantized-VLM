@@ -1,6 +1,6 @@
 """
-Phase 5 test — confirms llama-cpp-python can load Moondream2 with CUDA and run inference.
-Exit condition: Python reproduces the same output quality and speed as the Phase 4 CLI test.
+Confirms llama-cpp-python can load Moondream2 with CUDA and run inference.
+Checks that Python reproduces the same output quality and speed as the llama.cpp CLI.
 """
 
 import time
@@ -14,7 +14,7 @@ _PROJECT_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__
 MODEL_PATH  = os.path.join(_PROJECT_ROOT, "models", "moondream2-text-model-Q4_K_M.gguf")
 MMPROJ_PATH = os.path.join(_PROJECT_ROOT, "models", "moondream2-mmproj-f16.gguf")
 
-TEST_IMAGE_PATH = "/tmp/test_phase5.png"
+TEST_IMAGE_PATH = "/tmp/test_inference.png"
 N_GPU_LAYERS = -1  # offload all layers
 
 
@@ -54,7 +54,7 @@ def run_test():
     from llama_cpp import Llama
     from llama_cpp.llama_chat_format import MoondreamChatHandler
 
-    print("=== Phase 5 — Python Integration Test ===\n")
+    print("=== Python Integration Test ===\n")
 
     # Verify model files exist
     for path in [MODEL_PATH, MMPROJ_PATH]:
@@ -115,8 +115,8 @@ def run_test():
     print(f"Response: {answer}")
     print(f"Tokens: {tokens} | Time: {t1 - t0:.2f}s | Speed: {tokens / (t1 - t0):.1f} t/s\n")
 
-    print("=== Phase 5 PASSED ===")
-    print("Python interface working. Check t/s above — should match Phase 4 CLI (~19–21 t/s).")
+    print("=== Python Integration Test PASSED ===")
+    print("Python interface working. Check t/s above; should match the llama.cpp CLI (~19 to 21 t/s).")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """
-Library routes — Phase 15.
+Library routes.
 
-Users see only their own outputs (date → type in the sidebar).
+Users see only their own outputs (date then type in the sidebar).
 Admins see all users' outputs (username → date → type).
 
 Three routers:
