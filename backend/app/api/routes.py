@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import threading
@@ -76,12 +77,25 @@ def _run_inference_locked(prompt: str, save_dir: str | None = None, source: str 
         raise HTTPException(409, "Another inference is already running. Try again shortly.")
     try:
         jpeg = _require_frame()
+        # Fingerprint the exact bytes we are about to analyze. Two consecutive
+        # inferences with the same hash means the camera handed us identical
+        # frames, which points at a frozen camera rather than the model.
+        frame_hash = hashlib.md5(jpeg).hexdigest()[:12]
+        prev_hash = _state.get("last_frame_hash")
+        if prev_hash is not None and prev_hash == frame_hash:
+            print(
+                f"[camera] WARNING: two consecutive inferences used identical frame "
+                f"bytes (hash {frame_hash}). The camera delivered the same frame twice; "
+                f"a frozen or stalled camera is the likely cause, not the model."
+            )
+        _state["last_frame_hash"] = frame_hash
         text, tokens, elapsed = run_inference(_state["llm"], jpeg, prompt)
         result = {
             "text": text,
             "tokens": tokens,
             "elapsed_s": round(elapsed, 2),
             "timestamp": datetime.now().isoformat(),
+            "frame_hash": frame_hash,
         }
         _state["last_result"] = {**result, "prompt": prompt, "source": source, "jpeg": jpeg}
         target_dir = save_dir or RUNS_DIR
@@ -146,6 +160,12 @@ def status():
         "autoscan": _state.get("autoscan", False),
         "autoscan_interval_s": _state.get("autoscan_interval", 10),
         "memory_available_mb": _memory_mb(),
+        "frame_age_s": (
+            round(age, 1)
+            if _state.get("camera") is not None
+            and (age := _state["camera"].frame_age_s()) is not None
+            else None
+        ),
         "last_result": (
             {k: v for k, v in _state["last_result"].items() if k != "jpeg"}
             if _state.get("last_result")
@@ -169,6 +189,7 @@ def analyze(user: dict = Depends(get_current_user)):
         tokens=result["tokens"],
         elapsed_s=result["elapsed_s"],
         user_id=int(user["sub"]),
+        frame_hash=result.get("frame_hash"),
     )
     return result
 
@@ -186,6 +207,7 @@ def inspect(user: dict = Depends(get_current_user)):
         tokens=result["tokens"],
         elapsed_s=result["elapsed_s"],
         user_id=int(user["sub"]),
+        frame_hash=result.get("frame_hash"),
     )
     return result
 
@@ -303,6 +325,7 @@ def _autoscan_loop(interval: int, session_dir: str):
                     tokens=result["tokens"],
                     elapsed_s=result["elapsed_s"],
                     user_id=user_id,
+                    frame_hash=result.get("frame_hash"),
                 )
         except HTTPException:
             pass  # busy or camera not ready — skip this tick

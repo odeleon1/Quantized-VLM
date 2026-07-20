@@ -33,6 +33,9 @@ export function StatusBar({ status }: Props) {
       {status?.autoscan && (
         <span className="status-badge amber">⟳ AUTO-SCAN</span>
       )}
+      {status && status.frame_age_s != null && status.frame_age_s > 1 && (
+        <span className="status-badge red">⚠ STALE FRAME {status.frame_age_s.toFixed(1)}s</span>
+      )}
 
       {memText && (
         <span className="status-mem">{memText}</span>

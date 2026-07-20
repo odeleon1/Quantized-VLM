@@ -57,6 +57,7 @@ export interface InferenceResult {
   tokens: number;
   elapsed_s: number;
   timestamp: string;
+  frame_hash?: string;
 }
 
 export interface StatusResult {
@@ -67,6 +68,7 @@ export interface StatusResult {
   autoscan: boolean;
   autoscan_interval_s: number;
   memory_available_mb: number;
+  frame_age_s: number | null;
   last_result: (InferenceResult & { prompt: string; source: string }) | null;
 }
 

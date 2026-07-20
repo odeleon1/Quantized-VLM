@@ -4,4 +4,3 @@
 .venv
 .claude
 __pycache__
-/backend/app/core/config.py

@@ -36,9 +36,15 @@ def init_db() -> None:
             response   TEXT,
             tokens     INTEGER,
             elapsed_s  REAL,
-            user_id    INTEGER NOT NULL
+            user_id    INTEGER NOT NULL,
+            frame_hash TEXT
         )
     """)
+    # Databases created before frame_hash existed keep working: add the column
+    # in place if it is missing rather than requiring a rebuild.
+    existing_cols = {r[1] for r in conn.execute("PRAGMA table_info(outputs)").fetchall()}
+    if "frame_hash" not in existing_cols:
+        conn.execute("ALTER TABLE outputs ADD COLUMN frame_hash TEXT")
     conn.commit()
 
     count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
@@ -146,12 +152,13 @@ def log_output(
     tokens: int | None,
     elapsed_s: float | None,
     user_id: int,
+    frame_hash: str | None = None,
 ) -> int:
     conn = get_db()
     cur = conn.execute(
-        "INSERT INTO outputs (type, timestamp, file_path, prompt, response, tokens, elapsed_s, user_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (type, timestamp, file_path, prompt, response, tokens, elapsed_s, user_id),
+        "INSERT INTO outputs (type, timestamp, file_path, prompt, response, tokens, elapsed_s, user_id, frame_hash) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (type, timestamp, file_path, prompt, response, tokens, elapsed_s, user_id, frame_hash),
     )
     conn.commit()
     output_id = cur.lastrowid

@@ -58,7 +58,13 @@ async def lifespan(app: FastAPI):
 
     # Open camera first (fast) so the stream is available immediately
     _state["cap"] = open_camera(CAMERA_INDEX, CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS)
-    _state["camera"] = CameraThread(_state["cap"])
+    _state["camera"] = CameraThread(
+        _state["cap"],
+        device=CAMERA_INDEX,
+        width=CAMERA_WIDTH,
+        height=CAMERA_HEIGHT,
+        fps=CAMERA_FPS,
+    )
     _state["camera"].start()
 
     # Load model in a thread so the event loop stays responsive
