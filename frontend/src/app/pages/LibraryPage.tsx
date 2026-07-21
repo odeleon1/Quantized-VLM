@@ -87,17 +87,44 @@ function PreviewModal({ item, onClose }: { item: OutputItem; onClose: () => void
   const hasQA   = HAS_QA.has(item.type);
   const canDownload = DOWNLOADABLE.has(item.type);
 
+  // Escape closes the preview. On tablets the visible close button is hidden
+  // (tapping the backdrop is the natural gesture there), so this keeps a
+  // non-pointer way out for keyboard and assistive-technology users.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
     <div className="preview-overlay" onClick={onClose}>
       <div
         className={`preview-modal ${hasQA ? "preview-modal-split" : "preview-modal-single"}`}
         onClick={e => e.stopPropagation()}
       >
-        <button className="preview-close" onClick={onClose}>✕</button>
+        {/* Images can take an overlaid close button. Video cannot: Safari draws
+            its own controls over the video surface and we cannot move them, so
+            the video layout gets a dedicated header bar instead. */}
+        {!isVideo && (
+          <button className="preview-close" onClick={onClose} aria-label="Close preview">
+            ✕
+          </button>
+        )}
 
         {isVideo ? (
           /* ── Video recording ─────────────────────────────────── */
           <div className="preview-video-box">
+            <div className="preview-video-header">
+              <button
+                className="preview-close preview-close-static"
+                onClick={onClose}
+                aria-label="Close preview"
+              >
+                ✕
+              </button>
+            </div>
             <video
               className="preview-video-player"
               src={viewUrl}

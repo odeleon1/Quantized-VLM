@@ -1394,13 +1394,22 @@ Key decisions made in this project:
 
 These are the concepts behind the Phase 16 hardening work. Written for someone meeting them for the first time.
 
-### Why `max_tokens` is the biggest latency lever
+### `max_tokens`, and why measuring beat the theory
 
-This pipeline is **generation-bound**: almost all of the time a response takes is spent generating output tokens one at a time. On the Orin Nano the model produces roughly 22 tokens per second. That number is close to fixed, so the length of the answer, not its content, sets the response time. A 130-token answer costs about 6 seconds; an 80-token answer costs about 3.6 seconds.
+This is a good example of a reasonable hypothesis that did not survive contact with a measurement, so it is worth walking through both.
 
-`max_tokens` caps how many tokens the model may generate. If you do not set it, generation runs until the model decides to stop or hits the context limit, which is why a chatty reply can balloon the latency. Setting a cap is the cheapest possible speedup because it does not change the model, the quantization, or the hardware. It just stops generation once the answer is long enough. The tradeoff is that too low a cap truncates real answers mid-sentence, so the cap is chosen by running the eval suite and reading the outputs, not guessed. This is why the Phase 16 values start PROVISIONAL: the numbers only become trustworthy after a before-and-after measurement on the actual device.
+**The theory.** Generating text is sequential: the model emits one token at a time, so a longer answer takes proportionally longer. If generation runs at a fixed rate, the length of the answer sets the response time. `max_tokens` caps how many tokens the model may generate, and if you never set it, generation runs until the model stops on its own or hits the context limit. So capping it looks like the cheapest possible speedup: it changes no model, no quantization, no hardware, it just stops the model rambling.
 
-Prefill (encoding the image and prompt before generation starts) also costs time, but it is a fixed one-time cost per call. Generation is the part that scales with answer length, so it is where the easy wins are.
+**What the Jetson actually showed.** Running the full evaluation suite before and after, average latency was 7.73s versus 6.68s, which looks like a 13 percent win until you look closer. The two runs saw different live camera scenes, response lengths differ with scene content, and the "before" run's first prompt was a 12.02s CUDA warmup outlier. Normalizing for tokens, throughput was effectively identical. The honest conclusion is a **null result**: the caps did not speed up typical responses.
+
+**Why the theory failed here.** Two reasons:
+
+1. **The caps almost never engage.** Moondream2 naturally stops between 30 and 90 tokens on these prompts. A cap of 160 is simply never reached, so it changes nothing.
+2. **Latency is not purely generation-bound.** A response costs roughly 3.5 seconds of fixed image prefill (encoding about 729 image embedding positions) plus generation at 17 to 18 tokens per second. For a 50-token answer that is about 3.5s of prefill against 3s of generation. Shortening an answer that was never long cannot touch the prefill half.
+
+**And the cap actively caused harm when set too low.** At 160, `/inspect` stopped mid-item in its checklist; at 120, the eval Text Reading prompt stopped mid-phrase. The pipeline was trading correct answers for a speedup that did not exist.
+
+**The lesson worth keeping:** a cap like this is a *ceiling*, protection against a pathological rambling answer, not a performance tuning knob. Set it comfortably above the longest answer you actually observe, and verify by reading the outputs rather than trusting the latency number. And when a plausible optimisation shows a win, check whether the measurement is confounded before believing it. Here, the more promising optimisation is the prefill half of the equation, which is what the `n_batch` experiment targets.
 
 ### Why the model cannot serve a stale answer from its own memory
 
@@ -1498,8 +1507,9 @@ The Phase 16 layer is CSS only. It adds media queries at 1024, 768, and 480 pixe
 | **`outputs` table** | SQLite table that logs every user action (analyze, inspect, snapshot, autoscan, record, flag) with user ID, file path, and inference metadata; powers the Library tab |
 | **Library page** | A per-user media browser showing all captured outputs organized by date and action type; admins see all users' outputs; preview modal shows image + Q&A for inference types and a video player for recordings |
 | **`source` field (last_result)** | A string stored in `_state["last_result"]` by `_run_inference_locked()` identifying which button triggered the inference ("Analyze", "Inspect", or "Auto-Scan"); exposed via `/status` so the frontend can show the correct badge even for results recovered after a tab switch |
-| **`max_tokens`** | The cap on how many tokens the model may generate in one response. Because the pipeline is generation-bound at about 22 tokens per second, this is the main control over response latency. |
-| **generation-bound** | A workload whose time is dominated by generating output token by token rather than by input processing. Shortening the output is the cheapest way to reduce latency. |
+| **`max_tokens`** | The cap on how many tokens the model may generate in one response. Measured on this hardware it is a safety ceiling, not a tuning knob: the model naturally stops between 30 and 90 tokens, so the cap rarely engages, and setting it too low truncates real answers. |
+| **prefill** | Encoding the image and prompt before any output token is produced. Roughly 3.5s here (about 729 image embedding positions), a fixed cost per call that shortening the answer cannot reduce. It is about half the latency of a typical response. |
+| **null result** | A measurement showing no meaningful effect. Recording one honestly is a valid outcome: the Phase 16 token caps produced no average latency win, and saying so is more useful than reporting a difference that was really scene variance. |
 | **KV cache** | The key/value cache a transformer keeps so it does not recompute attention over the whole history for each new token. Cleared at the start of every call in the mtmd path, which is why no stale answer can carry over between inferences. |
 | **`frame_hash`** | The first 12 hex characters of the md5 of an analyzed JPEG. Two consecutive inferences with the same hash prove the camera delivered identical bytes, separating a frozen camera from sampling determinism. |
 | **frame staleness** | Treating a camera frame as perishable: `get_latest_jpeg(max_age_s)` returns None once the newest frame is older than the threshold, so a silently frozen USB camera becomes a clean "not ready" instead of an endlessly repeated image. |
