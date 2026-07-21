@@ -27,7 +27,7 @@ import numpy as np
 from app.services.capture import open_camera, capture_frame, release_camera
 from app.core.config import (
     MODEL_PATH, MMPROJ_PATH, REPORTS_DIR, BASELINE_PATH, CAMERA_INDEX,
-    MAX_TOKENS_ANALYZE, INFER_TEMPERATURE, INFER_REPEAT_PENALTY,
+    MAX_TOKENS_ANALYZE, INFER_TEMPERATURE, INFER_REPEAT_PENALTY, FLASH_ATTN,
 )
 from llama_cpp import Llama
 from llama_cpp.llama_chat_format import MoondreamChatHandler
@@ -130,6 +130,7 @@ def load_model():
         chat_handler=chat_handler,
         n_ctx=2048,
         n_gpu_layers=-1,
+        flash_attn=FLASH_ATTN,
         verbose=False,
     )
     print(f"Model loaded in {time.time() - t0:.1f}s\n")

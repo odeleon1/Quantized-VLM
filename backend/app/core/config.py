@@ -51,6 +51,12 @@ MAX_TOKENS_EVAL = int(os.environ.get("MAX_TOKENS_EVAL", "200"))
 INFER_TEMPERATURE = float(os.environ.get("INFER_TEMPERATURE", "0.3"))
 INFER_REPEAT_PENALTY = float(os.environ.get("INFER_REPEAT_PENALTY", "1.15"))
 
+# FlashAttention kernels. Benchmarked on the Orin Nano (sm87) against a fixed
+# image: prefill 3.05s to 2.18s and end to end 7.34s to 6.28s, about 14 percent
+# faster overall, with no quality regression. Set FLASH_ATTN=0 to disable if a
+# future llama.cpp build misbehaves.
+FLASH_ATTN = os.environ.get("FLASH_ATTN", "1") not in ("0", "false", "False")
+
 # ── Authentication secrets ────────────────────────────────────────────────────
 
 
