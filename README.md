@@ -21,38 +21,38 @@ The application is a **web interface** served by FastAPI and built in React, acc
 
 ## Screenshots
 
-### Live Tab
-![Live Tab](docs/screenshots/live-tab.png)
+### Live
+![Live](docs/screenshots/live.jpeg)
 
-*Live MJPEG camera feed with action buttons. Status bar shows model state, GPU layers offloaded, and free memory.*
-
----
-
-### Evaluation — Stats & Latency Chart
-![Evaluation Stats](docs/screenshots/eval-stats.png)
-
-*Evaluation report showing average latency, total tokens, fastest/slowest prompts, and a per-prompt latency bar chart. Baseline badge marks the reference run.*
+*Live camera feed with the action bar (Analyze, Inspect, Snapshot, Record, Auto-Scan, Flag). The status bar shows model state, GPU layers, and free memory; results accumulate in the panel on the right.*
 
 ---
 
-### Evaluation — Result Card with Clean Frame
-![Evaluation Report](docs/screenshots/eval-report.png)
+### Evaluation
+![Evaluation](docs/screenshots/evaluation.jpeg)
 
-*Per-prompt result cards show the prompt text (italic), model response, and the raw camera frame captured at inference time — no text overlay so the image is fully readable.*
-
----
-
-### Login Page
-![Login Page](docs/screenshots/Log%20In/Screenshot%20from%202026-06-29%2009-39-13.png)
-
-*Login screen shown to unauthenticated visitors. Accepts username or email address.*
+*Admin-only evaluation view. Run the 5-prompt suite, promote a run to baseline, and read per-prompt latency, token counts, the latency chart against the baseline, and each response beside the frame captured at inference time.*
 
 ---
 
-### Admin Panel
-![Admin Panel](docs/screenshots/Log%20In/Screenshot%20from%202026-06-29%2009-39-35.png)
+### Library
+![Library](docs/screenshots/library.jpeg)
 
-*User management table visible only to admin accounts. Shows all registered users with their role badge. Admins can promote standard users or demote other admins; the current user's own row shows "(you)" instead of action buttons.*
+*Per-user media browser organized by date and action type. Admins see every user's outputs; each card shows a response preview with its latency and token count. Downloads are offered for snapshots, flagged frames, and recordings.*
+
+---
+
+### Login
+![Login](docs/screenshots/login.jpeg)
+
+*Sign-in screen shown to unauthenticated visitors. Accepts a username or an email address.*
+
+---
+
+### Admin
+![Admin](docs/screenshots/admin.jpeg)
+
+*User management, admin accounts only. Each row shows the role badge; admins can promote standard users or demote other admins, and their own row reads "(you)" instead of an action button.*
 
 ---
 

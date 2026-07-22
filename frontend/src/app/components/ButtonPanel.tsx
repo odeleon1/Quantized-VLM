@@ -1,3 +1,4 @@
+import { Camera, Eye, Flag, ScanLine, ShieldAlert, Square, Video } from "lucide-react";
 import { api, type InferenceResult } from "../services/api";
 import type { ResultSource } from "./ResultPanel";
 
@@ -97,7 +98,7 @@ export function ButtonPanel({
         disabled={disabled}
         title="Describe what the camera sees"
       >
-        Analyze
+        <Eye size={15} /> Analyze
       </button>
 
       <button
@@ -106,7 +107,7 @@ export function ButtonPanel({
         disabled={disabled}
         title="Detect defects, damage, or safety hazards"
       >
-        Inspect
+        <ShieldAlert size={15} /> Inspect
       </button>
 
       <div className="btn-divider" />
@@ -117,7 +118,7 @@ export function ButtonPanel({
         onClick={handleSnapshot}
         title="Save current frame as a JPEG snapshot"
       >
-        Snapshot
+        <Camera size={15} /> Snapshot
       </button>
 
       <button
@@ -125,7 +126,7 @@ export function ButtonPanel({
         onClick={handleRecord}
         title={recording ? "Stop recording" : "Start recording session"}
       >
-        {recording ? "⏹ Stop Rec" : "⏺ Record"}
+        {recording ? <><Square size={15} /> Stop Rec</> : <><Video size={15} /> Record</>}
       </button>
 
       <button
@@ -134,7 +135,7 @@ export function ButtonPanel({
         disabled={!modelReady}
         title={autoscan ? "Stop auto-scan" : "Run Analyze every 10 seconds automatically"}
       >
-        {autoscan ? "⏹ Auto-Scan" : "⟳ Auto-Scan"}
+        {autoscan ? <><Square size={15} /> Auto-Scan</> : <><ScanLine size={15} /> Auto-Scan</>}
       </button>
 
       <div className="btn-divider" />
@@ -145,7 +146,7 @@ export function ButtonPanel({
         onClick={handleFlag}
         title="Flag current frame and last result for review"
       >
-        ⚑ Flag
+        <Flag size={15} /> Flag
       </button>
     </div>
   );

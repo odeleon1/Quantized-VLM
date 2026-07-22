@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { ChevronDown, ChevronRight, Download, X } from "lucide-react";
 import { api } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import type { OutputItem } from "../services/api";
@@ -109,7 +110,7 @@ function PreviewModal({ item, onClose }: { item: OutputItem; onClose: () => void
             the video layout gets a dedicated header bar instead. */}
         {!isVideo && (
           <button className="preview-close" onClick={onClose} aria-label="Close preview">
-            ✕
+            <X size={18} />
           </button>
         )}
 
@@ -122,7 +123,7 @@ function PreviewModal({ item, onClose }: { item: OutputItem; onClose: () => void
                 onClick={onClose}
                 aria-label="Close preview"
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
             <video
@@ -133,7 +134,7 @@ function PreviewModal({ item, onClose }: { item: OutputItem; onClose: () => void
             />
             <div className="preview-video-footer">
               <span className="preview-ts">{formatDate(item.timestamp)} · {formatTime(item.timestamp)}</span>
-              <a className="btn-preview-download" href={dlUrl} download>↓ Download MP4</a>
+              <a className="btn-preview-download" href={dlUrl} download><Download size={14} /> Download MP4</a>
             </div>
           </div>
         ) : hasQA ? (
@@ -173,7 +174,7 @@ function PreviewModal({ item, onClose }: { item: OutputItem; onClose: () => void
               <span className="preview-ts">{formatDate(item.timestamp)} · {formatTime(item.timestamp)}</span>
               {item.response && <p className="preview-flag-response">{item.response}</p>}
               {canDownload && (
-                <a className="btn-preview-download" href={dlUrl} download>↓ Download</a>
+                <a className="btn-preview-download" href={dlUrl} download><Download size={14} /> Download</a>
               )}
             </div>
           </div>
@@ -224,7 +225,7 @@ function MediaCard({ item, onPreview }: { item: OutputItem; onPreview: (item: Ou
             download
             onClick={e => e.stopPropagation()}
           >
-            ↓ Download
+            <Download size={13} /> Download
           </a>
         )}
       </div>
@@ -286,7 +287,7 @@ function DateGroupBlock({
         className={`lib-date-btn ${expanded ? "lib-date-btn-open" : ""}`}
         onClick={onToggle}
       >
-        <span className="lib-date-chevron">{expanded ? "▾" : "▸"}</span>
+        <span className="lib-date-chevron">{expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</span>
         <span className="lib-date-label">{date.dateLabel}</span>
       </button>
       {expanded && (
@@ -422,7 +423,7 @@ export function LibraryPage() {
                     className={`lib-user-btn ${isUserOpen ? "lib-user-btn-open" : ""}`}
                     onClick={() => toggleUser(ug.userId)}
                   >
-                    <span className="lib-date-chevron">{isUserOpen ? "▾" : "▸"}</span>
+                    <span className="lib-date-chevron">{isUserOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</span>
                     <span className="lib-user-name">{ug.username}</span>
                   </button>
                   {isUserOpen && (

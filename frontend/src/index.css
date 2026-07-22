@@ -2,26 +2,111 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:      #09091b;
-  --card:    #0f0f23;
-  --card2:   #1a1a35;
-  --border:  #1e2040;
-  --border2: #2e3a5a;
+  /* Neutrals — flat charcoal, not the default AI navy. Dark is the default theme;
+     light overrides live in [data-theme="light"] below. The alpha tokens replace
+     inline white-on-dark rgba so they can invert cleanly for light mode. */
+  --bg:        #0d0f11;
+  --card:      #15181c;
+  --card2:     #1c2025;
+  --border:    #262b31;
+  --border2:   #363d45;
+  --line:      rgba(255, 255, 255, 0.09);
+  --fill-1:    rgba(255, 255, 255, 0.035);
+  --fill-2:    rgba(255, 255, 255, 0.07);
+  --ghost:     rgba(255, 255, 255, 0.16);
+  --scrim:     rgba(0, 0, 0, 0.82);
+
+  --text:  #eceef1;
+  --text2: #98a2ad;
+  --text3: #5c6670;
+
+  /* Signal accents — functional, not decorative: analyze / inspect / alert / ok.
+     Kept at their established hues so the many tinted badges stay consistent. */
   --blue:    #2A7DE1;
   --blue-h:  #4a97f5;
   --red:     #E8453C;
   --amber:   #F7A928;
   --green:   #1DB954;
-  --text:    #ffffff;
-  --text2:   #8899aa;
-  --text3:   #44455a;
-  font-family: 'Ubuntu', 'DejaVu Sans', 'Segoe UI', system-ui, sans-serif;
+
+  /* Type: mono carries the instrument chrome (labels, status, data); sans is
+     applied to running prose only, further down. */
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'DejaVu Sans Mono', monospace;
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+
+  /* Motion: named easings replace the browser default 'ease'. */
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in:     cubic-bezier(0.5, 0, 0.75, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+
+  font-family: var(--font-mono);
   font-size: 14px;
+  font-variant-numeric: tabular-nums;
   color: var(--text);
   background: var(--bg);
+  color-scheme: dark;
 }
 
-body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; background: var(--bg); }
+:root[data-theme="light"] {
+  --bg:        #f4f5f7;
+  --card:      #ffffff;
+  --card2:     #f6f7f9;
+  --border:    #e2e5ea;
+  --border2:   #ccd2da;
+  --line:      rgba(18, 24, 30, 0.12);
+  --fill-1:    rgba(18, 24, 30, 0.035);
+  --fill-2:    rgba(18, 24, 30, 0.07);
+  --ghost:     rgba(18, 24, 30, 0.16);
+  --scrim:     rgba(24, 27, 32, 0.55);
+
+  --text:  #14181d;
+  --text2: #55606b;
+  --text3: #8a95a0;
+
+  /* Darkened accents so coloured text stays legible on light surfaces. The
+     translucent badge fills keep their light tint, which now reads correctly. */
+  --blue:  #1f6fd6;
+  --red:   #cf3a30;
+  --amber: #b06f06;
+  --green: #14833b;
+
+  color-scheme: light;
+}
+
+body {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  overflow-x: hidden;
+  background: var(--bg);
+  color: var(--text);
+  transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+
+/* Running prose uses the sans face; everything else stays mono (instrument). */
+.result-entry-text,
+.result-text,
+.result-empty,
+.lib-card-response,
+.preview-qa-text,
+.preview-flag-response { font-family: var(--font-sans); }
+
+/* Focus is visible and instant for keyboard users — never transitioned. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* ── App root (wraps nav bar + active page) ──────────────────────────────── */
 .app-root {
@@ -65,7 +150,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
-.nav-tab:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.nav-tab:hover { background: var(--fill-2); color: var(--text); }
 .nav-tab-active { background: rgba(42,125,225,0.15); color: var(--blue); }
 
 /* ── Layout ──────────────────────────────────────────────────────────────── */
@@ -111,7 +196,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   align-items: center;
   gap: 10px;
   background: var(--card);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid var(--line);
   padding: 8px 16px;
   font-size: 12px;
 }
@@ -144,8 +229,8 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 
 /* ── Camera card ─────────────────────────────────────────────────────────── */
 .camera-card {
-  background: linear-gradient(135deg, var(--card), var(--card2));
-  border: 1px solid rgba(255,255,255,0.06);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 12px;
   flex: 1;              /* grow to fill left-col, pushing buttons to bottom */
@@ -173,7 +258,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   color: var(--text3);
   font-size: 13px;
   border-radius: 8px;
-  background: rgba(0,0,0,0.2);
+  background: var(--fill-2);
 }
 
 /* ── Button panel ────────────────────────────────────────────────────────── */
@@ -197,7 +282,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   transition: background 0.15s, border-color 0.15s, color 0.15s;
   white-space: nowrap;
 }
-.btn:hover:not(:disabled) { background: #0a1a32; border-color: var(--blue); color: var(--text); }
+.btn:hover:not(:disabled) { background: var(--card2); border-color: var(--blue); color: var(--text); }
 .btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .btn-primary {
@@ -241,8 +326,8 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 
 /* ── Result panel ────────────────────────────────────────────────────────── */
 .result-panel {
-  background: linear-gradient(135deg, var(--card), var(--card2));
-  border: 1px solid rgba(255,255,255,0.06);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 16px;
   flex: 1;
@@ -264,7 +349,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 }
 
 .result-entry {
-  background: rgba(255,255,255,0.03);
+  background: var(--fill-1);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 12px;
@@ -414,8 +499,8 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 
 /* ── Eval runner ─────────────────────────────────────────────────────────── */
 .eval-runner {
-  background: linear-gradient(135deg, var(--card), var(--card2));
-  border: 1px solid rgba(255,255,255,0.06);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 16px;
   flex: 1;
@@ -492,7 +577,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 .eval-stat-chip {
   display: flex;
   flex-direction: column;
-  background: rgba(255,255,255,0.04);
+  background: var(--fill-1);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 10px;
@@ -516,8 +601,8 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 
 /* ── Report list ─────────────────────────────────────────────────────────── */
 .report-list {
-  background: linear-gradient(135deg, var(--card), var(--card2));
-  border: 1px solid rgba(255,255,255,0.06);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 14px;
   flex-shrink: 0;
@@ -550,7 +635,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   flex-shrink: 0;
 }
 .report-list-item:hover:not(:disabled) {
-  background: rgba(255,255,255,0.04);
+  background: var(--fill-1);
   border-color: var(--border);
 }
 .report-list-item-selected {
@@ -585,8 +670,8 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 
 /* ── Report viewer ───────────────────────────────────────────────────────── */
 .report-viewer {
-  background: linear-gradient(135deg, var(--card), var(--card2));
-  border: 1px solid rgba(255,255,255,0.06);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 16px;
   flex: 1;
@@ -633,7 +718,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 }
 
 .report-result-card {
-  background: rgba(255,255,255,0.03);
+  background: var(--fill-1);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px;
@@ -664,7 +749,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 
 /* ── Stats panel (inside ReportViewer) ──────────────────────────────────── */
 .stats-panel {
-  background: rgba(255,255,255,0.02);
+  background: var(--fill-1);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px;
@@ -719,7 +804,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 .latency-bar-track {
   flex: 1;
   height: 8px;
-  background: rgba(255,255,255,0.05);
+  background: var(--fill-2);
   border-radius: 4px;
   position: relative;
   overflow: visible;
@@ -731,7 +816,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   left: 0;
   height: 100%;
   border-radius: 4px;
-  background: rgba(255,255,255,0.15);
+  background: var(--ghost);
   pointer-events: none;
 }
 
@@ -765,7 +850,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 }
 .delta-faster { background: rgba(29,185,84,0.15);   color: var(--green); }
 .delta-slower { background: rgba(232,69,60,0.15);   color: var(--red); }
-.delta-same   { background: rgba(255,255,255,0.06); color: var(--text3); }
+.delta-same   { background: var(--fill-2); color: var(--text3); }
 
 /* ── Badges (report list + viewer) ──────────────────────────────────────── */
 .report-badge {
@@ -778,7 +863,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   flex-shrink: 0;
 }
 .report-badge-green { background: rgba(29,185,84,0.15);    color: var(--green); }
-.report-badge-gray  { background: rgba(255,255,255,0.08);  color: var(--text3); }
+.report-badge-gray  { background: var(--fill-2);  color: var(--text3); }
 
 /* ── Auth pages (login / signup) ─────────────────────────────────────────── */
 .auth-loading {
@@ -1041,7 +1126,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   padding: 2px 4px;
   border-radius: 4px;
 }
-.lib-refresh-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.lib-refresh-btn:hover { background: var(--fill-2); color: var(--text); }
 
 .lib-date-list {
   flex: 1;
@@ -1065,7 +1150,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   cursor: pointer;
   text-align: left;
 }
-.lib-date-btn:hover { background: rgba(255,255,255,0.04); }
+.lib-date-btn:hover { background: var(--fill-1); }
 .lib-date-btn-open  { color: var(--blue); }
 
 .lib-date-chevron { font-size: 10px; color: var(--text3); flex-shrink: 0; }
@@ -1091,7 +1176,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   border-radius: 5px;
   text-align: left;
 }
-.lib-type-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+.lib-type-btn:hover { background: var(--fill-2); color: var(--text); }
 .lib-type-btn-active { background: rgba(42,125,225,0.12); color: var(--text); }
 
 .lib-type-dot {
@@ -1111,7 +1196,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 .lib-type-count {
   font-size: 10px;
   color: var(--text3);
-  background: rgba(255,255,255,0.06);
+  background: var(--fill-2);
   border-radius: 8px;
   padding: 0 5px;
 }
@@ -1283,7 +1368,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   border-top: 1px solid var(--border);
 }
 .lib-user-btn:first-child { border-top: none; }
-.lib-user-btn:hover   { background: rgba(255,255,255,0.04); }
+.lib-user-btn:hover   { background: var(--fill-1); }
 .lib-user-btn-open    { color: var(--blue); }
 
 .lib-user-name  { flex: 1; letter-spacing: 0.3px; }
@@ -1293,7 +1378,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 .lib-main-user {
   font-size: 11px;
   color: var(--text2);
-  background: rgba(255,255,255,0.06);
+  background: var(--fill-2);
   padding: 1px 7px;
   border-radius: 10px;
 }
@@ -1302,7 +1387,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
 .preview-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.82);
+  background: var(--scrim);
   z-index: 200;
   display: flex;
   align-items: center;
@@ -1339,7 +1424,7 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   z-index: 10;
   /* Solid, high contrast so it stays readable over any image or video frame.
      The old translucent white on light content was nearly invisible. */
-  background: rgba(9, 9, 27, 0.88);
+  background: rgba(18, 20, 24, 0.9);
   border: 1px solid rgba(255,255,255,0.55);
   color: #fff;
   font-size: 16px;
@@ -1643,3 +1728,62 @@ body { height: 100vh; height: 100dvh; overflow: hidden; overflow-x: hidden; back
   .lib-grid    { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .btn         { font-size: 12px; padding: 0 12px; }
 }
+
+/* ── Icon alignment (lucide) + theme toggle ──────────────────────────────── */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.btn svg,
+.status-badge svg,
+.nav-theme svg,
+.btn-lib-download svg,
+.btn-preview-download svg { flex-shrink: 0; }
+.status-badge { display: inline-flex; align-items: center; gap: 5px; }
+.btn-lib-download,
+.btn-preview-download { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.lib-date-chevron { display: inline-flex; align-items: center; }
+
+.nav-theme {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-out),
+              border-color var(--dur-1) var(--ease-out),
+              background var(--dur-1) var(--ease-out);
+}
+.nav-theme:hover { color: var(--text); border-color: var(--text3); background: var(--fill-2); }
+
+/* ── Change-password modal ───────────────────────────────────────────────── */
+.pw-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.pw-card { position: relative; margin: 0; }
+.pw-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text3);
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+}
+.pw-close:hover { color: var(--text); background: var(--fill-2); }

@@ -6,6 +6,9 @@ import { EvalPage } from "./app/pages/EvalPage";
 import { LibraryPage } from "./app/pages/LibraryPage";
 import { LoginPage } from "./app/pages/LoginPage";
 import { SignupPage } from "./app/pages/SignupPage";
+import { ThemeToggle } from "./app/components/ThemeToggle";
+import { ChangePasswordModal } from "./app/components/ChangePasswordModal";
+import { KeyRound } from "lucide-react";
 
 type AuthRoute = "login" | "signup";
 type Page = "live" | "eval" | "library" | "admin";
@@ -14,6 +17,7 @@ function AppContent() {
   const { user, loading, logout } = useAuth();
   const [authRoute, setAuthRoute] = useState<AuthRoute>("login");
   const [page, setPage] = useState<Page>("live");
+  const [showChangePw, setShowChangePw] = useState(false);
 
   if (loading) {
     return <div className="auth-loading">Loading…</div>;
@@ -62,9 +66,20 @@ function AppContent() {
           </button>
         )}
         <div className="nav-spacer" />
+        <button
+          className="nav-theme"
+          onClick={() => setShowChangePw(true)}
+          aria-label="Change password"
+          title="Change password"
+        >
+          <KeyRound size={16} />
+        </button>
+        <ThemeToggle />
         <span className="nav-user">{user.username}</span>
         <button className="nav-logout" onClick={logout}>Log out</button>
       </nav>
+
+      {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
 
       {activePage === "live"    && <Dashboard />}
       {activePage === "eval"    && <EvalPage />}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Check } from "lucide-react";
 import { api } from "../services/api";
 import type { EvalStatus } from "../services/api";
 
@@ -127,7 +128,7 @@ export function EvalRunner({ evalStatus, autoscanActive, modelReady, onRunComple
             onClick={handleSetBaseline}
             disabled={settingBaseline || baselineSet}
           >
-            {baselineSet ? "✓ Baseline Set" : settingBaseline ? "Setting…" : "Set as Baseline"}
+            {baselineSet ? <><Check size={15} /> Baseline Set</> : settingBaseline ? "Setting…" : "Set as Baseline"}
           </button>
         </div>
       )}

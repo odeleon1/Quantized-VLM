@@ -205,6 +205,8 @@ export const api = {
   authSignup: (username: string, email: string, password: string) =>
     postJson<{ message: string; username: string }>("/auth/signup", { username, email, password }),
   authMe:     () => get<AuthUser>("/auth/me"),
+  authChangePassword: (current_password: string, new_password: string) =>
+    postJson<{ message: string }>("/auth/change-password", { current_password, new_password }),
 
   // Admin
   adminGetUsers: () => get<{ users: AdminUser[] }>("/admin/users"),
